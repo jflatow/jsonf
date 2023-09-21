@@ -35,6 +35,11 @@ class Fancy extends Fable {
   foo(): any {
     return this.json;
   }
+
+  @JSONF.referBound
+  bar(): any {
+    return this.json;
+  }
 }
 
 class Simple {
@@ -82,12 +87,23 @@ Deno.test("transparent jsonf refs", async () => {
   const _fn = JSONF.parse(_f_, { Fancy });
   assertEquals(fn_('z'), 'z');
   assertEquals(_fn('z'), 'z');
+  assert(Fancy.fun === _fn);
 
   const fancy = new Fancy({ some: [true, 'bar'] });
   const _foo_ = JSONF.stringify(fancy.foo);
   const _food = JSONF.parse(_foo_, { Fancy });
   assertEquals(fancy.foo(), { some: [true, 'bar'] });
   assertEquals(fancy.foo(), _food());
+  assert(fancy.foo !== _food);
+});
+
+Deno.test("bound methods", async () => {
+  const fancy = new Fancy({ some: [false, 'foo'] });
+  const _bar_ = JSONF.stringify(fancy.bar);
+  const _bard = JSONF.parse(_bar_, { Fancy });
+  assertEquals(fancy.bar(), { some: [false, 'foo'] });
+  assertEquals(fancy.bar(), _bard());
+  assert(fancy.bar !== _bard);
 });
 
 Deno.test("double parse", async () => {
@@ -125,4 +141,23 @@ Deno.test("serializable classes and instances without overrides", async () => {
   const s = JSONF.stringify(v);
   const p = JSONF.parse(s, { Simple });
   assertEquals(p, v);
+});
+
+Deno.test("callables that return new classes", async () => {
+  class H {
+    static k = 'r';
+    static extend(k: string) {
+      return class extends this {
+        static k = k;
+      }
+    }
+    static toJSON() {
+      return { $MAGIC$: { cls: 'H', key: 'extend', args: [this.k] } };
+    }
+  }
+
+  const J = H.extend('x');
+  const S = JSONF.stringify(J);
+  const P = JSONF.parse(S, { H });
+  assertEquals(P.k, 'x');
 });
