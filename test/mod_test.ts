@@ -148,7 +148,7 @@ Deno.test("callables that return new classes", async () => {
     static k = 'r';
     static extend(k: string) {
       return class extends this {
-        static k = k;
+        static override k = k;
       }
     }
     static toJSON() {

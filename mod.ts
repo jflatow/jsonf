@@ -19,21 +19,17 @@ export interface JSONFable<T, U> { fromJSON?(o: T): U }
 export interface JSONFables { [k: string]: JSONFable<any, any> | any };
 
 /** A helper for constructing JSONF decorators. */
-export function referrable(target: any, key: PropertyKey, val: any, bind = false) {
-  if (target.name) {
+export function referrable(context: any, target: any, key: PropertyKey, val: any, bind = false) {
+  if (context.static) {
     // decorating static prop
     const cls = target.name;
-    return Object.assign(val, { $MAGIC$: { cls, key } });
+     return Object.assign(val, { $MAGIC$: { cls, key } });
   } else {
     // decorating instance prop
     const cls = target.constructor.name;
-    return {
-      get() {
-        if (bind)
-          return Object.assign(val.bind(this), { $MAGIC$: { cls, ths: this, key } });
-        return Object.assign(val, { $MAGIC$: { cls, ths: this, key } });
-      }
-    }
+    if (bind)
+      return Object.assign(val.bind(target), { $MAGIC$: { cls, ths: target, key } });
+    return Object.assign(val, { $MAGIC$: { cls, ths: target, key } });
   }
 }
 
@@ -41,22 +37,26 @@ export function referrable(target: any, key: PropertyKey, val: any, bind = false
 export class JSONF {
   /** Decorator for bound methods.
    * Deserialized methods will not be comparable via equality checks.
-   * @param target The target class of the method we are decorating.
-   * @param key The name of the target method we are decorating.
+   * @param value The thing we are decorating.
+   * @param context The decoration context.
    * @returns The decorated bound function.
    */
-  static referBound(target: any, key: PropertyKey) {
-    return referrable(target, key, Reflect.get(target, key), true);
+  static referBound(value: any, context: any) {
+    context.addInitializer(function (this: any) {
+      Object.defineProperty(this, context.name, { value: referrable(context, this, context.name, value, true) });
+    });
   }
 
   /** Decorator for unbound methods.
    * Deserialized methods will be comparable via equality checks, if static.
-   * @param target The target class of the method we are decorating.
-   * @param key The name of the target method we are decorating.
+   * @param value The thing we are decorating.
+   * @param context The decoration context.
    * @returns The decorated unbound function.
    */
-  static referrable(target: any, key: PropertyKey) {
-    return referrable(target, key, Reflect.get(target, key));
+  static referrable(value: any, context: any) {
+    context.addInitializer(function (this: any) {
+      Object.defineProperty(this, context.name, { value: referrable(context, this, context.name, value) });
+    });
   }
 
   /** Serialize the `thing`.
